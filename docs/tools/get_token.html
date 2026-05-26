@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Obtener Token Instagram</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background: #f0f0f0; }
+    .card { background: white; border-radius: 12px; padding: 30px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1 { color: #e1306c; }
+    .btn { display: inline-block; padding: 12px 24px; background: #e1306c; color: white; text-decoration: none; border-radius: 8px; font-size: 1rem; cursor: pointer; border: none; }
+    .btn:hover { background: #c1185a; }
+    .token-box { background: #f8f8f8; border: 1px solid #ddd; border-radius: 8px; padding: 16px; word-break: break-all; font-family: monospace; font-size: 0.85rem; margin: 12px 0; }
+    .step { margin-bottom: 16px; padding: 16px; border-left: 4px solid #e1306c; background: #fff5f8; border-radius: 0 8px 8px 0; }
+    .step h3 { margin: 0 0 8px; color: #e1306c; }
+    input[type=text] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; box-sizing: border-box; margin: 8px 0; }
+    .success { color: green; font-weight: bold; }
+    .error { color: red; }
+    #longToken { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔑 Obtener Token de Instagram (60 días)</h1>
+    <p>Esta página te guía para obtener un token de larga duración para tu app <strong>Social-Hexa</strong>.</p>
+  </div>
+
+  <!-- PASO 1 -->
+  <div class="card">
+    <div class="step">
+      <h3>Paso 1 — Iniciar sesión con Instagram</h3>
+      <p>Haz clic en el botón. Se abrirá una ventana de Instagram para autorizar tu app. Después de autorizar, serás redirigido a una URL con un <code>code</code> en la barra de direcciones.</p>
+    </div>
+    <a class="btn" href="https://api.instagram.com/oauth/authorize?client_id=2561476044267417&redirect_uri=https://emiliohexacommerce.github.io/instagram-scheduler/callback.html&scope=instagram_business_basic,instagram_content_publish,instagram_manage_comments,instagram_business_manage_messages&response_type=code" target="_blank">
+      📸 Conectar con Instagram
+    </a>
+    <p style="margin-top:12px; color:#888; font-size:0.9rem;">⚠️ Después de autorizar, copia la URL completa de la página a la que fuiste redirigido y pégala abajo.</p>
+    <input type="text" id="redirectUrl" placeholder="Pega aquí la URL completa de redirección..." />
+    <button class="btn" onclick="extractCode()" style="background:#405de6;">Extraer código</button>
+    <div id="codeResult"></div>
+  </div>
+
+  <!-- PASO 2 -->
+  <div class="card" id="step2" style="display:none">
+    <div class="step">
+      <h3>Paso 2 — Obtener token de larga duración</h3>
+      <p>Código extraído: <span id="codeDisplay" class="success"></span></p>
+      <p>Ahora ejecuta este comando en tu terminal para obtener el token:</p>
+      <div class="token-box" id="curlCommand"></div>
+      <button class="btn" onclick="copyCmd()">📋 Copiar comando</button>
+    </div>
+    <p style="margin-top:16px;">Una vez que ejecutes el comando, copia el <code>access_token</code> del resultado y pégalo aquí:</p>
+    <input type="text" id="longTokenInput" placeholder="Pega aquí el access_token largo..." />
+    <button class="btn" onclick="saveToken()" style="background:#388e3c;">✅ Guardar token</button>
+    <div id="tokenSaved"></div>
+  </div>
+
+  <!-- RESULTADO FINAL -->
+  <div class="card" id="finalResult" style="display:none">
+    <div class="step">
+      <h3>✅ ¡Token listo! Configura tu .env</h3>
+    </div>
+    <p>Agrega estas variables a tu archivo <code>.env</code>:</p>
+    <div class="token-box" id="envContent"></div>
+    <button class="btn" onclick="copyEnv()">📋 Copiar .env</button>
+  </div>
+
+  <script>
+    const APP_ID = '2561476044267417';
+    const APP_SECRET = '21b74f99ee7a384f81108d73d4c04d0c';
+    const REDIRECT_URI = 'https://emiliohexacommerce.github.io/instagram-scheduler/callback.html';
+
+    function extractCode() {
+      const url = document.getElementById('redirectUrl').value.trim();
+      const match = url.match(/[?&]code=([^&#]+)/);
+      if (!match) {
+        document.getElementById('codeResult').innerHTML = '<p class="error">❌ No se encontró el código en la URL. Asegúrate de pegar la URL completa de redirección.</p>';
+        return;
+      }
+      const code = match[1].replace('#_', '');
+      document.getElementById('codeDisplay').textContent = code;
+      document.getElementById('step2').style.display = 'block';
+      
+      const curlCmd = `curl -X POST https://api.instagram.com/oauth/access_token ^\n  -F client_id=${APP_ID} ^\n  -F client_secret=${APP_SECRET} ^\n  -F grant_type=authorization_code ^\n  -F redirect_uri=${REDIRECT_URI} ^\n  -F code=${code}`;
+      document.getElementById('curlCommand').textContent = curlCmd;
+      document.getElementById('codeResult').innerHTML = '<p class="success">✅ Código extraído correctamente</p>';
+    }
+
+    function copyCmd() {
+      const text = document.getElementById('curlCommand').textContent;
+      navigator.clipboard.writeText(text);
+      alert('Comando copiado');
+    }
+
+    function saveToken() {
+      const token = document.getElementById('longTokenInput').value.trim();
+      if (!token) { alert('Pega el token primero'); return; }
+      
+      const env = `META_APP_ID=2561476044267417\nMETA_APP_SECRET=21b74f99ee7a384f81108d73d4c04d0c\nMETA_REDIRECT_URI=http://localhost:5000/api/accounts/callback\nINSTAGRAM_ACCESS_TOKEN=${token}`;
+      document.getElementById('envContent').textContent = env;
+      document.getElementById('finalResult').style.display = 'block';
+      document.getElementById('tokenSaved').innerHTML = '<p class="success">✅ Token registrado</p>';
+    }
+
+    function copyEnv() {
+      const text = document.getElementById('envContent').textContent;
+      navigator.clipboard.writeText(text);
+      alert('.env copiado al portapapeles');
+    }
+
+    // Si ya venimos de un redirect con code en la URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    if (code) {
+      document.getElementById('redirectUrl').value = window.location.href;
+      extractCode();
+    }
+  </script>
+</body>
+</html>
