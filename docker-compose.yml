@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -29,10 +29,11 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - META_APP_ID=${META_APP_ID}
       - META_APP_SECRET=${META_APP_SECRET}
+      - META_REDIRECT_URI=${META_REDIRECT_URI}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:4200}
     ports:
-      - "5000:80"
+      - "5000:8080"
     depends_on:
       postgres:
         condition: service_healthy

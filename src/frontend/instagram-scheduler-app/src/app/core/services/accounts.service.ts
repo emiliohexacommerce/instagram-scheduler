@@ -9,6 +9,7 @@ export class AccountsService {
   private api = `${environment.apiUrl}/accounts`;
 
   getAll() { return this.http.get<InstagramAccount[]>(this.api); }
-  connect() { window.location.href = `${this.api}/connect`; }
+  connect() { this.http.get<{ url: string }>(`${this.api}/connect`).subscribe(r => window.location.href = r.url); }
+  connectWithToken(accessToken: string) { return this.http.post(`${this.api}/connect-token`, { accessToken }); }
   disconnect(id: number) { return this.http.delete(`${this.api}/${id}`); }
 }

@@ -25,7 +25,7 @@ import { InstagramAccount } from '../../core/models/account.model';
         <div class="post-list">
           <div class="post-item" *ngFor="let p of upcoming">
             <div class="post-meta">
-              <span class="account">@{{ p.accountUsername }}</span>
+              <span class="account">&#64;{{ p.accountUsername }}</span>
               <span class="time">{{ p.scheduledAt | date:'dd/MM HH:mm' }}</span>
             </div>
             <p class="caption">{{ p.caption | slice:0:100 }}{{ p.caption.length > 100 ? '...' : '' }}</p>

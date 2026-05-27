@@ -50,6 +50,7 @@ public class InstagramService : IInstagramService
         // Obtener cuentas de Instagram vinculadas
         var accountsUrl = $"https://graph.facebook.com/v18.0/me/accounts?access_token={accessToken}";
         var accountsResponse = await _http.GetStringAsync(accountsUrl);
+        _logger.LogInformation("Pages response: {Response}", accountsResponse);
         var accountsData = JsonSerializer.Deserialize<JsonElement>(accountsResponse);
 
         foreach (var page in accountsData.GetProperty("data").EnumerateArray())
@@ -59,6 +60,7 @@ public class InstagramService : IInstagramService
 
             var igUrl = $"https://graph.facebook.com/v18.0/{pageId}?fields=instagram_business_account&access_token={pageToken}";
             var igResponse = await _http.GetStringAsync(igUrl);
+            _logger.LogInformation("IG account for page {PageId}: {Response}", pageId, igResponse);
             var igData = JsonSerializer.Deserialize<JsonElement>(igResponse);
 
             if (!igData.TryGetProperty("instagram_business_account", out var igAccount)) continue;
@@ -91,6 +93,91 @@ public class InstagramService : IInstagramService
         }
 
         await _db.SaveChangesAsync();
+    }
+
+    public async Task ConnectWithTokenAsync(string accessToken, int userId)
+    {
+        // Token de Instagram directo (empieza con "IG") — usar Instagram Graph API
+        if (accessToken.StartsWith("IG", StringComparison.OrdinalIgnoreCase))
+        {
+            await ConnectInstagramTokenAsync(accessToken, userId);
+            return;
+        }
+
+        // Token de Facebook — buscar páginas con Instagram Business vinculado
+        var accountsUrl = $"https://graph.facebook.com/v18.0/me/accounts?access_token={accessToken}";
+        var accountsResponse = await _http.GetStringAsync(accountsUrl);
+        var accountsData = JsonSerializer.Deserialize<JsonElement>(accountsResponse);
+        var pages = accountsData.GetProperty("data").EnumerateArray().ToList();
+
+        var found = false;
+        foreach (var page in pages)
+        {
+            var pageId = page.GetProperty("id").GetString()!;
+            var pageToken = page.GetProperty("access_token").GetString()!;
+
+            var igUrl = $"https://graph.facebook.com/v18.0/{pageId}?fields=instagram_business_account&access_token={pageToken}";
+            var igData = JsonSerializer.Deserialize<JsonElement>(await _http.GetStringAsync(igUrl));
+
+            if (!igData.TryGetProperty("instagram_business_account", out var igAccount)) continue;
+            found = true;
+
+            var igId = igAccount.GetProperty("id").GetString()!;
+            var igInfo = JsonSerializer.Deserialize<JsonElement>(
+                await _http.GetStringAsync($"https://graph.facebook.com/v18.0/{igId}?fields=username,name,profile_picture_url&access_token={pageToken}"));
+
+            await UpsertAccountAsync(userId, igId,
+                igInfo.TryGetProperty("username", out var u) ? u.GetString() ?? "" : "",
+                igInfo.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                igInfo.TryGetProperty("profile_picture_url", out var pic) ? pic.GetString() : null,
+                pageToken);
+        }
+
+        // Si no hay páginas con IG Business, intentar el token como Instagram directamente
+        if (!found)
+            await ConnectInstagramTokenAsync(accessToken, userId);
+
+        await _db.SaveChangesAsync();
+    }
+
+    private async Task ConnectInstagramTokenAsync(string accessToken, int userId)
+    {
+        var meUrl = $"https://graph.instagram.com/v18.0/me?fields=id,username,name,profile_picture_url&access_token={accessToken}";
+        var meData = JsonSerializer.Deserialize<JsonElement>(await _http.GetStringAsync(meUrl));
+
+        var igId = meData.GetProperty("id").GetString()!;
+        await UpsertAccountAsync(userId, igId,
+            meData.TryGetProperty("username", out var u) ? u.GetString() ?? "" : "",
+            meData.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+            meData.TryGetProperty("profile_picture_url", out var pic) ? pic.GetString() : null,
+            accessToken);
+
+        await _db.SaveChangesAsync();
+    }
+
+    private async Task UpsertAccountAsync(int userId, string igId, string username, string name, string? pic, string token)
+    {
+        var existing = await _db.InstagramAccounts.FirstOrDefaultAsync(a =>
+            a.InstagramUserId == igId && a.UserId == userId);
+
+        if (existing != null)
+        {
+            existing.AccessToken = token;
+            existing.TokenExpiresAt = DateTime.UtcNow.AddDays(60);
+        }
+        else
+        {
+            _db.InstagramAccounts.Add(new InstagramAccount
+            {
+                UserId = userId,
+                InstagramUserId = igId,
+                Username = username,
+                Name = name,
+                ProfilePictureUrl = pic,
+                AccessToken = token,
+                TokenExpiresAt = DateTime.UtcNow.AddDays(60)
+            });
+        }
     }
 
     public async Task PublishPostAsync(int postId)

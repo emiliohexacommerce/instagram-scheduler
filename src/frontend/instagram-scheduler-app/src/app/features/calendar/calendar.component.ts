@@ -87,8 +87,8 @@ export class CalendarComponent implements OnInit {
       days.push({ date, currentMonth: true, isToday: date.toDateString() === today.toDateString(), posts: postsOnDay });
     }
     while (days.length % 7 !== 0) {
-      const d = new Date(year, month + 1, days.length - last.getDate() - startDay + 1);
-      days.push({ date: d, currentMonth: false, isToday: false, posts: [] });
+      const nextD: Date = new Date(year, month + 1, days.length - last.getDate() - startDay + 1);
+      days.push({ date: nextD, currentMonth: false, isToday: false, posts: [] });
     }
     return days;
   }

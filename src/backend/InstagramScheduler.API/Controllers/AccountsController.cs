@@ -1,3 +1,4 @@
+using InstagramScheduler.API.DTOs;
 using InstagramScheduler.API.Models.Entities;
 using InstagramScheduler.API.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -13,10 +14,12 @@ public class AccountsController : ControllerBase
 {
     private readonly IAccountService _accounts;
     private readonly IInstagramService _instagram;
-    public AccountsController(IAccountService accounts, IInstagramService instagram)
+    private readonly IConfiguration _config;
+    public AccountsController(IAccountService accounts, IInstagramService instagram, IConfiguration config)
     {
         _accounts = accounts;
         _instagram = instagram;
+        _config = config;
     }
 
     private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -26,15 +29,23 @@ public class AccountsController : ControllerBase
         Ok(await _accounts.GetAccountsByUserAsync(UserId));
 
     [HttpGet("connect")]
-    public async Task<IActionResult> Connect() =>
-        Redirect(await _instagram.GetAuthUrlAsync(UserId));
+    public async Task<ActionResult<object>> Connect() =>
+        Ok(new { url = await _instagram.GetAuthUrlAsync(UserId) });
 
     [HttpGet("callback")]
     [AllowAnonymous]
     public async Task<IActionResult> Callback([FromQuery] string code, [FromQuery] int state)
     {
         await _instagram.HandleCallbackAsync(code, state);
-        return Redirect($"{Request.Scheme}://{Request.Host}/accounts?connected=true");
+        var frontendUrl = _config["FRONTEND_URL"] ?? "http://localhost:4200";
+        return Redirect($"{frontendUrl}/accounts?connected=true");
+    }
+
+    [HttpPost("connect-token")]
+    public async Task<IActionResult> ConnectWithToken([FromBody] ConnectTokenRequest request)
+    {
+        await _instagram.ConnectWithTokenAsync(request.AccessToken, UserId);
+        return Ok();
     }
 
     [HttpDelete("{id}")]
