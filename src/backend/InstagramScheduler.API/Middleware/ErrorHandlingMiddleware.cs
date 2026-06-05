@@ -22,16 +22,34 @@ public class ErrorHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error no manejado");
-            context.Response.ContentType = "application/json";
-            context.Response.StatusCode = ex switch
-            {
-                UnauthorizedAccessException => (int)HttpStatusCode.Unauthorized,
-                KeyNotFoundException => (int)HttpStatusCode.NotFound,
-                InvalidOperationException => (int)HttpStatusCode.BadRequest,
-                _ => (int)HttpStatusCode.InternalServerError
-            };
-            await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = ex.Message }));
+            await HandleExceptionAsync(context, ex);
         }
+    }
+
+    private async Task HandleExceptionAsync(HttpContext context, Exception ex)
+    {
+        var (status, message) = ex switch
+        {
+            UnauthorizedAccessException => (HttpStatusCode.Unauthorized, ex.Message),
+            KeyNotFoundException => (HttpStatusCode.NotFound, ex.Message),
+            InvalidOperationException => (HttpStatusCode.BadRequest, ex.Message),
+            ArgumentException => (HttpStatusCode.BadRequest, ex.Message),
+            OperationCanceledException => (HttpStatusCode.RequestTimeout, "La operación fue cancelada."),
+            _ => (HttpStatusCode.InternalServerError, "Error interno del servidor.")
+        };
+
+        if (status == HttpStatusCode.InternalServerError)
+            _logger.LogError(ex, "Error no manejado en {Method} {Path}", context.Request.Method, context.Request.Path);
+        else
+            _logger.LogWarning(ex, "{ExType} en {Method} {Path}", ex.GetType().Name, context.Request.Method, context.Request.Path);
+
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = (int)status;
+        await context.Response.WriteAsync(JsonSerializer.Serialize(new
+        {
+            error = message,
+            status = (int)status,
+            path = context.Request.Path.Value
+        }));
     }
 }

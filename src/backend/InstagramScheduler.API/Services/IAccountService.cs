@@ -4,6 +4,7 @@ namespace InstagramScheduler.API.Services;
 
 public interface IAccountService
 {
-    Task<List<InstagramAccount>> GetAccountsByUserAsync(int userId);
+    Task<List<SocialAccount>> GetAccountsByUserAsync(int userId);
+    Task<List<SocialAccount>> GetAccountsByUserAndPlatformAsync(int userId, SocialPlatform platform);
     Task DisconnectAccountAsync(int accountId, int userId);
 }

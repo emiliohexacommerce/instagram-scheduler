@@ -12,7 +12,13 @@ namespace InstagramScheduler.API.Controllers;
 public class PostsController : ControllerBase
 {
     private readonly IPostService _posts;
-    public PostsController(IPostService posts) => _posts = posts;
+    private readonly ISubscriptionService _subscriptions;
+
+    public PostsController(IPostService posts, ISubscriptionService subscriptions)
+    {
+        _posts = posts;
+        _subscriptions = subscriptions;
+    }
 
     private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -20,13 +26,13 @@ public class PostsController : ControllerBase
     public async Task<ActionResult<List<PostResponse>>> GetAll() =>
         Ok(await _posts.GetPostsByUserAsync(UserId));
 
-    [HttpGet("account/{accountId}")]
-    public async Task<ActionResult<List<PostResponse>>> GetByAccount(int accountId) =>
-        Ok(await _posts.GetPostsByAccountAsync(accountId, UserId));
-
     [HttpPost]
-    public async Task<ActionResult<PostResponse>> Create(CreatePostRequest request) =>
-        Ok(await _posts.CreatePostAsync(request, UserId));
+    public async Task<ActionResult<PostResponse>> Create(CreatePostRequest request)
+    {
+        if (!await _subscriptions.CanPublishPostAsync(UserId))
+            throw new InvalidOperationException("Has alcanzado el límite de publicaciones de tu plan. Actualiza tu suscripción para continuar.");
+        return Ok(await _posts.CreatePostAsync(request, UserId));
+    }
 
     [HttpPut("{id}")]
     public async Task<ActionResult<PostResponse>> Update(int id, UpdatePostRequest request) =>

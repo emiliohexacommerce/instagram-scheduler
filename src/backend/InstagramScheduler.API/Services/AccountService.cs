@@ -9,12 +9,15 @@ public class AccountService : IAccountService
     private readonly AppDbContext _db;
     public AccountService(AppDbContext db) => _db = db;
 
-    public Task<List<InstagramAccount>> GetAccountsByUserAsync(int userId) =>
-        _db.InstagramAccounts.Where(a => a.UserId == userId && a.IsActive).ToListAsync();
+    public Task<List<SocialAccount>> GetAccountsByUserAsync(int userId) =>
+        _db.SocialAccounts.Where(a => a.UserId == userId && a.IsActive).ToListAsync();
+
+    public Task<List<SocialAccount>> GetAccountsByUserAndPlatformAsync(int userId, SocialPlatform platform) =>
+        _db.SocialAccounts.Where(a => a.UserId == userId && a.Platform == platform && a.IsActive).ToListAsync();
 
     public async Task DisconnectAccountAsync(int accountId, int userId)
     {
-        var account = await _db.InstagramAccounts
+        var account = await _db.SocialAccounts
             .FirstOrDefaultAsync(a => a.Id == accountId && a.UserId == userId)
             ?? throw new KeyNotFoundException("Cuenta no encontrada.");
         account.IsActive = false;

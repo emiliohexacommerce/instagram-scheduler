@@ -7,5 +7,7 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public ICollection<InstagramAccount> Accounts { get; set; } = new List<InstagramAccount>();
+    public ICollection<SocialAccount> SocialAccounts { get; set; } = new List<SocialAccount>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
 }
