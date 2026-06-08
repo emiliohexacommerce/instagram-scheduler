@@ -10,7 +10,7 @@ export interface AuthResponse {
   email: string;
 }
 
-export type SocialPlatform = 'Instagram' | 'Facebook';
+export type SocialPlatform = 'Instagram' | 'Facebook' | 'Threads' | 'LinkedIn';
 export type PostStatus = 'Draft' | 'Scheduled' | 'Processing' | 'Published' | 'Failed';
 export type PostType = 'Image' | 'Carousel' | 'Reel';
 
@@ -140,6 +140,20 @@ export const useGetFacebookPages = () =>
       api.post<FacebookPageOption[]>('/accounts/facebook-pages', { accessToken }),
   });
 
+export const useConnectFacebookPage = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (page: FacebookPageOption) =>
+      api.post<SocialAccount>('/accounts/connect-facebook-page', {
+        pageId: page.pageId,
+        pageName: page.name,
+        pictureUrl: page.pictureUrl,
+        pageToken: page.pageToken,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
+  });
+};
+
 export const useConnectWithToken = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -225,6 +239,149 @@ export const useCheckout = () =>
     mutationFn: (planId: number) =>
       api.post<{ paymentUrl: string; token: string; orderId: string }>('/subscriptions/checkout', { planId }),
   });
+
+// ── Profile ───────────────────────────────────────────────────────────────────
+
+export interface UserProfile {
+  name: string;
+  email: string;
+  timeZone: string;
+}
+
+export const useProfile = () =>
+  useQuery({
+    queryKey: ['profile'],
+    queryFn: () => api.get<UserProfile>('/profile'),
+  });
+
+export const useUpdateProfile = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name?: string; timeZone?: string }) =>
+      api.put<UserProfile>('/profile', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['profile'] }),
+  });
+};
+
+// ── LinkedIn ──────────────────────────────────────────────────────────────────
+
+export interface LinkedInAccountOption {
+  id: string;
+  name: string;
+  pictureUrl?: string;
+  type: 'personal' | 'organization';
+}
+
+export const useGetLinkedInOrgs = () =>
+  useMutation({
+    mutationFn: (accountId: number) =>
+      api.get<LinkedInAccountOption[]>(`/accounts/linkedin-orgs/${accountId}`),
+  });
+
+export const useConnectLinkedInOrg = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { personalAccountId: number; orgId: string; orgName: string; pictureUrl?: string }) =>
+      api.post<SocialAccount>('/accounts/connect-linkedin-org', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
+  });
+};
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+export interface PlatformStat {
+  platform: string;
+  total: number;
+  published: number;
+  failed: number;
+}
+
+export interface TimelinePoint {
+  date: string;
+  published: number;
+  failed: number;
+}
+
+export interface AnalyticsOverview {
+  totalPosts: number;
+  publishedPosts: number;
+  failedPosts: number;
+  scheduledPosts: number;
+  draftPosts: number;
+  successRate: number;
+  thisWeekPosts: number;
+  thisMonthPosts: number;
+  platformBreakdown: PlatformStat[];
+  timeline: TimelinePoint[];
+}
+
+export interface AccountInsights {
+  accountId: number;
+  platform: string;
+  username: string;
+  profilePictureUrl?: string;
+  followersCount?: number;
+  mediaCount?: number;
+}
+
+export const useAnalytics = (days = 30) =>
+  useQuery({
+    queryKey: ['analytics', days],
+    queryFn: () => api.get<AnalyticsOverview>(`/analytics?days=${days}`),
+  });
+
+export const useAccountInsights = (accountId: number | null) =>
+  useQuery({
+    queryKey: ['insights', accountId],
+    queryFn: () => api.get<AccountInsights>(`/analytics/insights/${accountId}`),
+    enabled: accountId !== null,
+  });
+
+// ── Inbox ─────────────────────────────────────────────────────────────────────
+
+export interface InboxReply {
+  id: string;
+  authorUsername: string;
+  text: string;
+  timestamp: string;
+}
+
+export interface InboxComment {
+  id: string;
+  authorUsername: string;
+  text: string;
+  timestamp: string;
+  replies: InboxReply[];
+}
+
+export interface InboxPost {
+  postId: string;
+  platform: SocialPlatform;
+  accountId: number;
+  accountUsername: string;
+  accountPictureUrl?: string;
+  caption: string;
+  mediaUrl?: string;
+  postedAt: string;
+  commentsCount: number;
+  comments: InboxComment[];
+}
+
+export const useInbox = (accountId?: number) =>
+  useQuery({
+    queryKey: ['inbox', accountId],
+    queryFn: () => api.get<InboxPost[]>(accountId ? `/inbox?accountId=${accountId}` : '/inbox'),
+    staleTime: 60_000,
+  });
+
+export const useReplyToComment = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { commentId: string; platform: string; accountId: number; message: string }) =>
+      api.post('/inbox/reply', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['inbox'] }),
+  });
+};
 
 // ── AI Caption ────────────────────────────────────────────────────────────────
 

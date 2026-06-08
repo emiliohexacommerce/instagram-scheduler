@@ -14,6 +14,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Options pattern — bind from config sections, then fall back to flat env vars
 builder.Services.Configure<MetaOptions>(builder.Configuration.GetSection("Meta"));
+builder.Services.Configure<LinkedInOptions>(builder.Configuration.GetSection("LinkedIn"));
+builder.Services.PostConfigure<LinkedInOptions>(o =>
+{
+    if (string.IsNullOrEmpty(o.ClientId)) o.ClientId = builder.Configuration["LINKEDIN_CLIENT_ID"] ?? "";
+    if (string.IsNullOrEmpty(o.ClientSecret)) o.ClientSecret = builder.Configuration["LINKEDIN_CLIENT_SECRET"] ?? "";
+    if (string.IsNullOrEmpty(o.RedirectUri)) o.RedirectUri = builder.Configuration["LINKEDIN_REDIRECT_URI"]
+        ?? builder.Configuration["META_REDIRECT_URI"] ?? "";
+});
 builder.Services.PostConfigure<MetaOptions>(o =>
 {
     if (string.IsNullOrEmpty(o.AppId)) o.AppId = builder.Configuration["META_APP_ID"] ?? "";
@@ -21,6 +29,9 @@ builder.Services.PostConfigure<MetaOptions>(o =>
     if (string.IsNullOrEmpty(o.RedirectUri)) o.RedirectUri = builder.Configuration["META_REDIRECT_URI"] ?? "";
     if (string.IsNullOrEmpty(o.InstagramAppId)) o.InstagramAppId = builder.Configuration["INSTAGRAM_APP_ID"] ?? "";
     if (string.IsNullOrEmpty(o.InstagramAppSecret)) o.InstagramAppSecret = builder.Configuration["INSTAGRAM_APP_SECRET"] ?? "";
+    if (string.IsNullOrEmpty(o.ThreadsAppId)) o.ThreadsAppId = builder.Configuration["THREADS_APP_ID"] ?? "";
+    if (string.IsNullOrEmpty(o.ThreadsAppSecret)) o.ThreadsAppSecret = builder.Configuration["THREADS_APP_SECRET"] ?? "";
+    if (string.IsNullOrEmpty(o.ThreadsRedirectUri)) o.ThreadsRedirectUri = builder.Configuration["THREADS_REDIRECT_URI"] ?? "";
 });
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
@@ -121,6 +132,8 @@ builder.Services.AddScoped<IWebpayService, WebpayService>();
 // Social publishers (Strategy pattern — add new platforms here)
 builder.Services.AddScoped<ISocialPublisher, InstagramPublisher>();
 builder.Services.AddScoped<ISocialPublisher, FacebookPublisher>();
+builder.Services.AddScoped<ISocialPublisher, ThreadsPublisher>();
+builder.Services.AddScoped<ISocialPublisher, LinkedInPublisher>();
 builder.Services.AddScoped<PublisherFactory>();
 builder.Services.AddScoped<SocialPublishingService>();
 

@@ -4,3 +4,5 @@ public record RegisterRequest(string Name, string Email, string Password, int Pl
 public record LoginRequest(string Email, string Password);
 public record AuthResponse(string Token, string Name, string Email, string? RefreshToken = null);
 public record RefreshTokenRequest(string RefreshToken);
+public record UserProfileResponse(string Name, string Email, string TimeZone);
+public record UpdateProfileRequest(string? Name, string? TimeZone);

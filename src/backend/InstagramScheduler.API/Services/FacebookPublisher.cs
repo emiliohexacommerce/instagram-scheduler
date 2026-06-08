@@ -35,7 +35,7 @@ public class FacebookPublisher : ISocialPublisher
     public Task<string> GetAuthUrlAsync(int userId)
     {
         var redirectUri = Uri.EscapeDataString(_meta.RedirectUri);
-        var scopes = "pages_manage_posts,pages_read_engagement,pages_show_list";
+        var scopes = "pages_manage_posts,pages_read_engagement,pages_show_list,business_management";
         var state = $"{userId}:{(int)SocialPlatform.Facebook}";
         return Task.FromResult(
             $"https://www.facebook.com/v18.0/dialog/oauth?client_id={_meta.AppId}&redirect_uri={redirectUri}&scope={scopes}&state={state}");
@@ -157,60 +157,11 @@ public class FacebookPublisher : ISocialPublisher
     public async Task<List<DTOs.FacebookPageOption>> GetAvailablePagesAsync(string accessToken)
     {
         var longLivedToken = await ExchangeFacebookLongLivedTokenAsync(accessToken);
-
-        var pagesRaw = await (await _http.GetAsync(
-            $"https://graph.facebook.com/v18.0/me/accounts?fields=id,name,picture,access_token&access_token={longLivedToken}"))
-            .Content.ReadAsStringAsync();
-        var pagesData = JsonSerializer.Deserialize<JsonElement>(pagesRaw);
-
-        if (pagesData.TryGetProperty("error", out var err))
-            throw new InvalidOperationException($"Token inválido o sin permisos: {err.GetProperty("message").GetString()}");
-
-        var result = new List<DTOs.FacebookPageOption>();
-        foreach (var page in pagesData.GetProperty("data").EnumerateArray())
-        {
-            var pageId = page.GetProperty("id").GetString()!;
-            var pageName = page.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-            var pageToken = page.TryGetProperty("access_token", out var pt) ? pt.GetString()! : longLivedToken;
-
-            string? picUrl = null;
-            if (page.TryGetProperty("picture", out var pic) &&
-                pic.TryGetProperty("data", out var picData) &&
-                picData.TryGetProperty("url", out var picUrlEl))
-            {
-                picUrl = picUrlEl.GetString();
-            }
-
-            result.Add(new DTOs.FacebookPageOption(pageId, pageName, picUrl, pageToken));
-        }
-
-        // Si no hay páginas via /me/accounts, intentar como Page Access Token directo.
-        // Solo válido si /me devuelve 'category' (indica que es una página, no un perfil personal).
-        if (result.Count == 0)
-        {
-            var meRaw = await (await _http.GetAsync(
-                $"https://graph.facebook.com/v18.0/me?fields=id,name,picture,category&access_token={longLivedToken}"))
-                .Content.ReadAsStringAsync();
-            var meData = JsonSerializer.Deserialize<JsonElement>(meRaw);
-
-            if (!meData.TryGetProperty("error", out _) && meData.TryGetProperty("category", out _))
-            {
-                var pageId = meData.GetProperty("id").GetString()!;
-                var pageName = meData.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                string? picUrl = null;
-                if (meData.TryGetProperty("picture", out var picObj) &&
-                    picObj.TryGetProperty("data", out var picData) &&
-                    picData.TryGetProperty("url", out var picUrlEl))
-                {
-                    picUrl = picUrlEl.GetString();
-                }
-                result.Add(new DTOs.FacebookPageOption(pageId, pageName, picUrl, longLivedToken));
-            }
-        }
+        var result = await DiscoverPagesAsync(longLivedToken);
 
         if (result.Count == 0)
             throw new InvalidOperationException(
-                "No se encontraron páginas de Facebook para este token. Asegúrate de generar un token nuevo con los permisos 'pages_show_list' y 'pages_manage_posts' desde el Graph API Explorer.");
+                "No se encontraron páginas de Facebook. Si tus páginas están en Business Manager, agrega el permiso 'business_management' al token en el Graph API Explorer.");
 
         return result;
     }
@@ -218,44 +169,24 @@ public class FacebookPublisher : ISocialPublisher
     public async Task<SocialAccount> ConnectWithTokenAsync(string accessToken, int userId)
     {
         var longLivedToken = await ExchangeFacebookLongLivedTokenAsync(accessToken);
+        var pages = await DiscoverPagesAsync(longLivedToken);
 
-        // Intento 1: User Access Token — buscar páginas asociadas via /me/accounts
-        var pagesRaw = await (await _http.GetAsync(
-            $"https://graph.facebook.com/v18.0/me/accounts?fields=id,name,picture,access_token&access_token={longLivedToken}"))
-            .Content.ReadAsStringAsync();
-        var pagesData = JsonSerializer.Deserialize<JsonElement>(pagesRaw);
-
-        if (!pagesData.TryGetProperty("error", out _))
+        if (pages.Count > 0)
         {
-            var pages = pagesData.GetProperty("data").EnumerateArray().ToList();
-            if (pages.Count > 0)
-            {
-                var page = pages[0];
-                var pageId = page.GetProperty("id").GetString()!;
-                var pageName = page.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                var pageToken = page.TryGetProperty("access_token", out var pt) ? pt.GetString()! : longLivedToken;
-
-                string? picUrl = null;
-                if (page.TryGetProperty("picture", out var pic) &&
-                    pic.TryGetProperty("data", out var picData) &&
-                    picData.TryGetProperty("url", out var picUrlEl))
-                {
-                    picUrl = picUrlEl.GetString();
-                }
-
-                var account = await UpsertAsync(userId, pageId, pageId, pageName, picUrl, pageToken);
-                await _db.SaveChangesAsync();
-                return account;
-            }
+            var page = pages[0];
+            var account = await UpsertAsync(userId, page.PageId, page.PageId, page.Name, page.PictureUrl, page.PageToken);
+            await _db.SaveChangesAsync();
+            return account;
         }
 
-        // Intento 2: Page Access Token directo — solo válido si /me devuelve 'category' (es una página, no perfil personal)
+        // Intento final: Page Access Token directo — las páginas no tienen 'first_name', los perfiles personales sí
         var meRaw = await (await _http.GetAsync(
-            $"https://graph.facebook.com/v18.0/me?fields=id,name,picture,category&access_token={longLivedToken}"))
+            $"https://graph.facebook.com/v18.0/me?fields=id,name,picture,first_name&access_token={longLivedToken}"))
             .Content.ReadAsStringAsync();
         var meData = JsonSerializer.Deserialize<JsonElement>(meRaw);
 
-        if (!meData.TryGetProperty("error", out _) && meData.TryGetProperty("category", out _))
+        var isPersonalProfile = meData.TryGetProperty("first_name", out _);
+        if (!meData.TryGetProperty("error", out _) && !isPersonalProfile)
         {
             var pageId = meData.GetProperty("id").GetString()!;
             var pageName = meData.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
@@ -334,6 +265,88 @@ public class FacebookPublisher : ISocialPublisher
         };
         _db.SocialAccounts.Add(account);
         return account;
+    }
+
+    public async Task<SocialAccount> ConnectPageDirectAsync(string pageId, string pageName, string? pictureUrl, string pageToken, int userId)
+    {
+        var account = await UpsertAsync(userId, pageId, pageId, pageName, pictureUrl, pageToken);
+        await _db.SaveChangesAsync();
+        return account;
+    }
+
+    private async Task<List<DTOs.FacebookPageOption>> DiscoverPagesAsync(string longLivedToken)
+    {
+        var result = new List<DTOs.FacebookPageOption>();
+
+        // Fuente 1: /me/accounts (páginas directas del usuario)
+        var accountsRaw = await (await _http.GetAsync(
+            $"https://graph.facebook.com/v18.0/me/accounts?fields=id,name,picture,access_token&access_token={longLivedToken}"))
+            .Content.ReadAsStringAsync();
+        var accountsData = JsonSerializer.Deserialize<JsonElement>(accountsRaw);
+
+        if (!accountsData.TryGetProperty("error", out _))
+        {
+            foreach (var page in accountsData.GetProperty("data").EnumerateArray())
+            {
+                var pageId = page.GetProperty("id").GetString()!;
+                var pageName = page.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                var pageToken = page.TryGetProperty("access_token", out var pt) ? pt.GetString()! : longLivedToken;
+                string? picUrl = null;
+                if (page.TryGetProperty("picture", out var pic) &&
+                    pic.TryGetProperty("data", out var picData) &&
+                    picData.TryGetProperty("url", out var picUrlEl))
+                    picUrl = picUrlEl.GetString();
+                result.Add(new DTOs.FacebookPageOption(pageId, pageName, picUrl, pageToken));
+            }
+        }
+
+        // Fuente 2: Business Manager (páginas bajo Meta Business Suite)
+        if (result.Count == 0)
+        {
+            var bizRaw = await (await _http.GetAsync(
+                $"https://graph.facebook.com/v18.0/me/businesses?fields=id&access_token={longLivedToken}"))
+                .Content.ReadAsStringAsync();
+            var bizData = JsonSerializer.Deserialize<JsonElement>(bizRaw);
+
+            if (!bizData.TryGetProperty("error", out _))
+            {
+                foreach (var biz in bizData.GetProperty("data").EnumerateArray())
+                {
+                    var bizId = biz.GetProperty("id").GetString()!;
+                    var ownedRaw = await (await _http.GetAsync(
+                        $"https://graph.facebook.com/v18.0/{bizId}/owned_pages?fields=id,name,picture&access_token={longLivedToken}"))
+                        .Content.ReadAsStringAsync();
+                    var ownedData = JsonSerializer.Deserialize<JsonElement>(ownedRaw);
+
+                    if (ownedData.TryGetProperty("error", out _)) continue;
+
+                    foreach (var page in ownedData.GetProperty("data").EnumerateArray())
+                    {
+                        var pageId = page.GetProperty("id").GetString()!;
+                        if (result.Any(r => r.PageId == pageId)) continue;
+
+                        var pageName = page.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+
+                        // Obtener el page token específico para esta página
+                        var ptRaw = await (await _http.GetAsync(
+                            $"https://graph.facebook.com/v18.0/{pageId}?fields=access_token,picture&access_token={longLivedToken}"))
+                            .Content.ReadAsStringAsync();
+                        var ptData = JsonSerializer.Deserialize<JsonElement>(ptRaw);
+                        var pageToken = ptData.TryGetProperty("access_token", out var pt) ? pt.GetString()! : longLivedToken;
+
+                        string? picUrl = null;
+                        if (page.TryGetProperty("picture", out var pic) &&
+                            pic.TryGetProperty("data", out var picData) &&
+                            picData.TryGetProperty("url", out var picUrlEl))
+                            picUrl = picUrlEl.GetString();
+
+                        result.Add(new DTOs.FacebookPageOption(pageId, pageName, picUrl, pageToken));
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 
     private string UnprotectToken(string value)

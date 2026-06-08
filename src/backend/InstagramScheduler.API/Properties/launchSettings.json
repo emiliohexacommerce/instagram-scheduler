@@ -2,9 +2,15 @@
   "profiles": {
     "http": {
       "commandName": "Project",
-      "applicationUrl": "http://localhost:5010",
+      "applicationUrl": "https://localhost:7010;http://localhost:5010",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "THREADS_APP_ID": "",
+        "THREADS_APP_SECRET": "",
+        "THREADS_REDIRECT_URI": "https://localhost:7010/api/accounts/callback",
+        "LINKEDIN_CLIENT_ID": "",
+        "LINKEDIN_CLIENT_SECRET": "",
+        "LINKEDIN_REDIRECT_URI": "http://localhost:5010/api/accounts/callback"
       }
     }
   }

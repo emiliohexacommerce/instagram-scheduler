@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Trash2, Send, Pencil, Image, Instagram, Facebook } from 'lucide-react';
+import { Plus, Trash2, Send, Pencil, Image, Instagram, Facebook, AtSign, Linkedin } from 'lucide-react';
 import {
   usePosts, useCreatePost, useDeletePost, usePublishNow,
   useUploadMedia, type PostStatus, type PostType, type SocialPlatform
@@ -33,16 +33,18 @@ const STATUS_LABEL: Record<PostStatus, string> = {
 const PLATFORM_ICON: Record<SocialPlatform, React.ElementType> = {
   Instagram: Instagram,
   Facebook: Facebook,
+  Threads: AtSign,
+  LinkedIn: Linkedin,
 };
 
-const PLATFORMS: SocialPlatform[] = ['Instagram', 'Facebook'];
+const PLATFORMS: SocialPlatform[] = ['Instagram', 'Facebook', 'Threads', 'LinkedIn'];
 
 const postSchema = z.object({
   caption: z.string().min(1, 'Caption requerido'),
   hashtags: z.string().optional(),
   mediaUrls: z.array(z.string().url()).min(1, 'Agrega al menos una imagen'),
   type: z.enum(['Image', 'Carousel', 'Reel'] as const),
-  platforms: z.array(z.enum(['Instagram', 'Facebook'] as const)).min(1, 'Selecciona al menos una plataforma'),
+  platforms: z.array(z.enum(['Instagram', 'Facebook', 'Threads', 'LinkedIn'] as const)).min(1, 'Selecciona al menos una plataforma'),
   scheduledAt: z.string().optional(),
 });
 type PostForm = z.infer<typeof postSchema>;
@@ -64,7 +66,7 @@ function CreatePostDialog() {
       ? selectedPlatforms.filter(p => p !== platform)
       : [...selectedPlatforms, platform];
     setSelectedPlatforms(next);
-    setValue('platforms', next as ['Instagram' | 'Facebook', ...('Instagram' | 'Facebook')[]]);
+    setValue('platforms', next as ['Instagram' | 'Facebook' | 'Threads', ...('Instagram' | 'Facebook' | 'Threads')[]]);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -266,12 +268,19 @@ export default function PostsPage() {
                     🕐 {new Date(post.scheduledAt).toLocaleString('es')}
                   </p>
                 )}
-                {post.results.length > 0 && post.results.some(r => r.errorMessage) && (
-                  <div className="mt-1 flex flex-col gap-0.5">
-                    {post.results.filter(r => r.errorMessage).map(r => (
-                      <p key={r.platform} className="text-xs text-destructive">
-                        {r.platform}: {r.errorMessage}
-                      </p>
+                {post.results.length > 0 && (
+                  <div className="mt-1.5 flex flex-col gap-0.5">
+                    {post.results.map(r => (
+                      <div key={r.platform} className="flex items-center gap-1.5 text-xs">
+                        <span className={`size-1.5 rounded-full shrink-0 ${r.status === 'Published' ? 'bg-green-500' : r.status === 'Failed' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                        <span className="text-muted-foreground">{r.platform}:</span>
+                        {r.status === 'Published' && r.publishedAt
+                          ? <span className="text-green-600 dark:text-green-400">Publicado {new Date(r.publishedAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</span>
+                          : r.errorMessage
+                            ? <span className="text-destructive truncate max-w-[200px]">{r.errorMessage}</span>
+                            : <span className="text-muted-foreground">{r.status}</span>
+                        }
+                      </div>
                     ))}
                   </div>
                 )}

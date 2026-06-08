@@ -14,6 +14,9 @@ const CalendarPage = lazy(() => import('@/pages/calendar/page'));
 const AiCaptionPage = lazy(() => import('@/pages/ai-caption/page'));
 const PlansPage = lazy(() => import('@/pages/plans/page'));
 const SubscriptionPage = lazy(() => import('@/pages/subscription/page'));
+const SettingsPage = lazy(() => import('@/pages/settings/page'));
+const AnalyticsPage = lazy(() => import('@/pages/analytics/page'));
+const InboxPage = lazy(() => import('@/pages/inbox/page'));
 
 function PageLoader() {
   return (
@@ -42,6 +45,9 @@ export function AppRoutingSetup() {
           <Route path="/ai-caption" element={<Suspense fallback={<PageLoader />}><AiCaptionPage /></Suspense>} />
           <Route path="/plans" element={<Suspense fallback={<PageLoader />}><PlansPage /></Suspense>} />
           <Route path="/subscription" element={<Suspense fallback={<PageLoader />}><SubscriptionPage /></Suspense>} />
+          <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
+          <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><AnalyticsPage /></Suspense>} />
+          <Route path="/inbox" element={<Suspense fallback={<PageLoader />}><InboxPage /></Suspense>} />
         </Route>
       </Route>
 

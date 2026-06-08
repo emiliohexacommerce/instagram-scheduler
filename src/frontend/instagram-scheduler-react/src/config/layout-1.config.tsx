@@ -6,6 +6,9 @@ import {
   FileText,
   CreditCard,
   Layers,
+  Settings,
+  BarChart2,
+  MessageSquare,
 } from 'lucide-react';
 import { MenuConfig } from '@/config/types';
 
@@ -41,6 +44,19 @@ export const MENU_SIDEBAR: MenuConfig = [
     path: '/calendar',
   },
   {
+    heading: 'Análisis',
+  },
+  {
+    title: 'Analytics',
+    icon: BarChart2,
+    path: '/analytics',
+  },
+  {
+    title: 'Inbox',
+    icon: MessageSquare,
+    path: '/inbox',
+  },
+  {
     heading: 'Herramientas',
   },
   {
@@ -60,5 +76,13 @@ export const MENU_SIDEBAR: MenuConfig = [
     title: 'Planes',
     icon: Layers,
     path: '/plans',
+  },
+  {
+    heading: 'Cuenta',
+  },
+  {
+    title: 'Configuración',
+    icon: Settings,
+    path: '/settings',
   },
 ];

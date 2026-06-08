@@ -15,6 +15,9 @@ public class AccountService : IAccountService
     public Task<List<SocialAccount>> GetAccountsByUserAndPlatformAsync(int userId, SocialPlatform platform) =>
         _db.SocialAccounts.Where(a => a.UserId == userId && a.Platform == platform && a.IsActive).ToListAsync();
 
+    public Task<SocialAccount?> GetAccountByIdAsync(int accountId, int userId) =>
+        _db.SocialAccounts.FirstOrDefaultAsync(a => a.Id == accountId && a.UserId == userId && a.IsActive);
+
     public async Task DisconnectAccountAsync(int accountId, int userId)
     {
         var account = await _db.SocialAccounts
